@@ -46,7 +46,7 @@ class SalesTaxTemplate(BaseTemplate):
         pdf.cell(0, 12, self.template_type.upper(), ln=True, align='C')
         pdf.ln(5)
 
-        # Parse invoice month from date
+        # Parse invoice month
         try:
             invoice_date = datetime.strptime(data.get("Date", ""), "%Y-%m-%d")
             invoice_month = invoice_date.strftime("%B %Y")
@@ -59,11 +59,11 @@ class SalesTaxTemplate(BaseTemplate):
             ("Date", data.get("Date", "")),
             ("Invoice Month", invoice_month),
             ("Invoice No", data.get("Invoice No", "")),
-            ("Company NTN No", data.get("Company NTN", "")),
-            ("Company SRB No", data.get("Company STN", ""))
+            ("Company NTN", data.get("Company NTN", "")),
+            ("Company STN", data.get("Company STN", ""))
         ]
 
-        box_height = 7
+        box_height = 8
         x_left = pdf.get_x()
         y_start = pdf.get_y()
 
@@ -71,25 +71,25 @@ class SalesTaxTemplate(BaseTemplate):
         for field in left_fields:
             pdf.set_xy(x_left, y_start)
             pdf.set_font("Arial", 'B', 10)
-            pdf.cell(38, box_height, f"{field}:", border=1)
+            pdf.cell(35, box_height, f"{field}:", border=1)
             pdf.set_font("Arial", '', 10)
-            pdf.cell(62, box_height, data.get(field, ""), border=1, ln=1)
+            pdf.cell(50, box_height, data.get(field, ""), border=1, ln=1)
             y_start += box_height
 
         # Right box
-        x_right = 110
+        x_right = x_left + 85 + 10
         y_top = pdf.get_y() - len(left_fields) * box_height
         for label, value in right_fields:
             pdf.set_xy(x_right, y_top)
             pdf.set_font("Arial", 'B', 10)
-            pdf.cell(38, box_height, f"{label}:", border=1)
+            pdf.cell(35, box_height, f"{label}:", border=1)
             pdf.set_font("Arial", '', 10)
-            pdf.cell(42, box_height, value, border=1, ln=1)
+            pdf.cell(50, box_height, value, border=1, ln=1)
             y_top += box_height
 
         pdf.ln(8)
 
-        # Line items header
+        # Table header
         headers = ["Sr", "Description", "Size", "Duration", "Start Date", "End Date", "Amount"]
         widths = [8, 60, 15, 18, 23, 23, 30]
 
@@ -99,7 +99,7 @@ class SalesTaxTemplate(BaseTemplate):
             pdf.cell(width, 8, header, 1, 0, 'C', fill=True)
         pdf.ln()
 
-        # Line item rows
+        # Line items + inside table totals
         pdf.set_font("Arial", '', 9)
         subtotal = 0
         for idx, item in enumerate(data.get("line_items", []), 1):
@@ -118,26 +118,19 @@ class SalesTaxTemplate(BaseTemplate):
             pdf.ln()
             subtotal += float(item.get("Amount", "0").replace(",", ""))
 
-        pdf.ln(5)
-
-        # Totals section (clean layout)
+        # GST row (inside table)
         gst_rate = float(data.get("GST Percentage", 15))
         gst_total = round(subtotal * gst_rate / 100)
+        pdf.cell(sum(widths[:-1]), 8, f"GST @ {gst_rate:.0f}%", 1, 0, 'L')
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(widths[-1], 8, f"{gst_total:,.0f}", 1, 1, 'R')
+        pdf.set_font("Arial", '', 9)
+
+        # Grand total row (full width)
         grand_total = subtotal + gst_total
-
-        pdf.set_fill_color(245, 245, 245)
-        label_width = 130
-        value_width = 40
-        row_height = 8
-
-        def total_line(label, value, bold=False):
-            pdf.set_font("Arial", 'B', 10 if not bold else 11)
-            pdf.cell(label_width, row_height, label, border=1, align='R', fill=True)
-            pdf.cell(value_width, row_height, f"Rs. {value:,.0f}/-", border=1, ln=1, align='R')
-
-        total_line("Subtotal", subtotal)
-        total_line(f"GST @ {gst_rate:.0f}%", gst_total)
-        total_line("Grand Total", grand_total, bold=True)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(sum(widths[:-1]), 8, "Total", 1, 0, 'C')
+        pdf.cell(widths[-1], 8, f"{grand_total:,.0f}", 1, 1, 'R')
 
         pdf.ln(6)
 
@@ -147,7 +140,7 @@ class SalesTaxTemplate(BaseTemplate):
             words = num2words(grand_total, lang='en_IN').capitalize()
         except:
             words = str(grand_total)
-        pdf.multi_cell(0, 6, f"Amount in words: {words} Rupees Only/=", border=0)
+        pdf.multi_cell(0, 6, f"Rupees in words: {words} Rupees Only/=", border=0)
 
 
 def get_template_class():
